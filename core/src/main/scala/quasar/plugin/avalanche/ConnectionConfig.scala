@@ -18,122 +18,154 @@ package quasar.plugin.avalanche
 
 import scala._, Predef._
 import scala.concurrent.duration._
+import scala.util.matching.Regex
 
 import java.lang.String
 
-import argonaut._, Argonaut._
+import argonaut._, Argonaut._, ArgonautCats._
 
 import cats.{Eq, Show}
-import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.{Validated, ValidatedNel}
 import cats.implicits._
+
+import monocle.{Lens, Traversal}
 
 import quasar.plugin.jdbc.Redacted
 
+import shims.traverseToScalaz
+
 /** Avalanche connection configuration.
   *
-  * @see https://docs.actian.com/avalanche/index.html#page/Connectivity%2FData_Source_Properties.htm%23
+  * @see https://docs.actian.com/avalanche/index.html#page/Connectivity%2FJDBC_Driver_Properties.htm%23
   */
-final case class ConnectionConfig (
+final case class ConnectionConfig(
     serverName: String,
     databaseName: String,
+    properties: List[DriverProperty],
     maxConcurrency: Option[Int],
-    maxLifetime: Option[FiniteDuration],
-    properties: Map[String, String]) {
+    maxLifetime: Option[FiniteDuration]) {
 
   import ConnectionConfig._
 
-  def dataSourceProperites: Map[String, String] =
-    properties
-      .updated(ServerNameProp, serverName)
-      .updated(DatabaseNameProp, databaseName)
-
   def sanitized: ConnectionConfig = {
-    val sanitizedProps =
-      SensitiveProps.foldLeft(properties) {
-        case (ps, p) if ps.contains(p) =>
-          // Roles may include a role password via 'name|password',
-          // so we need to redact the password, if present
-          if (p == RoleNameProp) {
-            val parts = ps(p).split('|')
-            ps.updated(p, if (parts.length > 1) s"${parts(0)}|$Redacted" else parts(0))
-          } else {
-            ps.updated(p, Redacted)
-          }
+    val sanitizedProps = properties map {
+      case DriverProperty(name, value) if RoleProps(name) =>
+        // Roles may include a role password via 'name|password',
+        // so we need to redact the password, if present
+        val parts = value.split('|')
+        DriverProperty(name, if (parts.length > 1) s"${parts(0)}|$Redacted" else parts(0))
 
-        case (ps, _) => ps
-      }
+      case DriverProperty(name, _) if SensitiveProps(name) =>
+        DriverProperty(name, Redacted)
+
+      case other => other
+    }
 
     copy(properties = sanitizedProps)
   }
 
   def validated: ValidatedNel[String, ConnectionConfig] = {
-    val invalidProps = properties.keySet -- ConfigurableProps
-
-    invalidProps.toList.toNel.toInvalid(this) leftMap { ps =>
-      NonEmptyList.one(ps.toList.mkString("Unsupported properties: ", ", ", ""))
+    val invalidProps = properties collect {
+      case DriverProperty(name, _) if !ConfigurableProps(name) => name
     }
+
+    Validated.condNel(
+      invalidProps.isEmpty,
+      this,
+      invalidProps.mkString("Unsupported properties: ", ", ", ""))
+  }
+
+  def asJdbcUrl: String = {
+    val nonProps = s"jdbc:ingres://$serverName/$databaseName"
+    (nonProps :: properties.map(_.forUrl)).mkString(";")
   }
 }
 
 object ConnectionConfig {
-  val ServerNameProp: String = "serverName"
-  val DatabaseNameProp: String = "databaseName"
-  val RoleNameProp: String = "roleName"
+  private val Pattern: Regex = "jdbc:ingres://([^/]+)/([^;]+)(?:;(.*))?".r
+
+  val RoleProps: Set[String] =
+    Set("role", "ROLE")
 
   /** Properties having values that should never be displayed. */
   val SensitiveProps: Set[String] =
-    Set("dbmsPassword", "password", RoleNameProp)
+    Set("dbms_password", "DBPWD", "password", "PWD") ++ RoleProps
 
-  /** The configurable Avalanche DataSource properties. */
+  /** The configurable Avalanche driver properties. */
   val ConfigurableProps: Set[String] =
     Set(
-      "compression",
-      "encryption",
-      "dbmsUser",
-      "groupName",
-      "user",
-      "vnodeUsage"
+      "user", "UID",
+      "group", "GRP",
+      "dbms_user", "DBUSR",
+      "compression", "COMPRESS",
+      "vnode_usage", "VNODE",
+      "encryption", "ENCRYPT",
+      "char_encode", "ENCODE"
     ) ++ SensitiveProps
+
+  object Optics {
+    val serverName: Lens[ConnectionConfig, String] =
+      Lens[ConnectionConfig, String](_.serverName)(n => _.copy(serverName = n))
+
+    val databaseName: Lens[ConnectionConfig, String] =
+      Lens[ConnectionConfig, String](_.databaseName)(n => _.copy(databaseName = n))
+
+    val properties: Lens[ConnectionConfig, List[DriverProperty]] =
+      Lens[ConnectionConfig, List[DriverProperty]](_.properties)(ps => _.copy(properties = ps))
+
+    val driverProperties: Traversal[ConnectionConfig, DriverProperty] =
+      properties.composeTraversal(Traversal.fromTraverse[List, DriverProperty])
+
+    val maxConcurrency: Lens[ConnectionConfig, Option[Int]] =
+      Lens[ConnectionConfig, Option[Int]](_.maxConcurrency)(n => _.copy(maxConcurrency = n))
+
+    val maxLifetime: Lens[ConnectionConfig, Option[FiniteDuration]] =
+      Lens[ConnectionConfig, Option[FiniteDuration]](_.maxLifetime)(d => _.copy(maxLifetime = d))
+  }
 
   implicit val connectionConfigCodecJson: CodecJson[ConnectionConfig] =
     CodecJson(
-      cc => {
-        val noProps =
-          ("serverName" := cc.serverName) ->:
-          ("databaseName" := cc.databaseName) ->:
-          ("maxConcurrency" :=? cc.maxConcurrency) ->?:
-          ("maxLifetimeSecs" :=? cc.maxLifetime.map(_.toSeconds)) ->?:
-          jEmptyObject
-
-        if (cc.properties.isEmpty)
-          noProps
-        else
-          ("properties" := cc.properties) ->: noProps
-      },
+      cc =>
+        ("jdbcUrl" := cc.asJdbcUrl) ->:
+        ("maxConcurrency" :=? cc.maxConcurrency) ->?:
+        ("maxLifetimeSecs" :=? cc.maxLifetime.map(_.toSeconds)) ->?:
+        jEmptyObject,
 
       cursor => for {
-        serverName <- (cursor --\ "serverName").as[String]
-        databaseName <- (cursor --\ "databaseName").as[String]
         maxConcurrency <- (cursor --\ "maxConcurrency").as[Option[Int]]
-
         maxLifetimeSecs <- (cursor --\ "maxLifetimeSecs").as[Option[Int]]
         maxLifetime = maxLifetimeSecs.map(_.seconds)
 
-        maybeProps <- (cursor --\ "properties").as[Option[Map[String, Option[String]]]]
-        props = maybeProps.fold(Map.empty[String, String])(_.flattenOption)
-      } yield ConnectionConfig(serverName, databaseName, maxConcurrency, maxLifetime, props))
+        urlCursor = cursor --\ "jdbcUrl"
+
+        jdbcUrl <- urlCursor.as[String]
+
+        (server, db, propStr) <- jdbcUrl match {
+          case Pattern(srv, db, ps) => DecodeResult.ok((srv, db, ps))
+          case _ => DecodeResult.fail("Malformed JDBC URL", urlCursor.history)
+        }
+
+        separated = Option(propStr).fold[List[String]](Nil)(_.split(';').toList)
+
+        properties <- separated traverse {
+          case DriverProperty.AttrValue(name, value) =>
+            DecodeResult.ok(DriverProperty(name, value))
+
+          case _ =>
+            DecodeResult.fail[DriverProperty]("Malformed driver property", urlCursor.history)
+        }
+      } yield ConnectionConfig(server, db, properties, maxConcurrency, maxLifetime))
 
   implicit val connectionConfigEq: Eq[ConnectionConfig] =
     Eq.by(cc => (
       cc.serverName,
       cc.databaseName,
+      cc.properties,
       cc.maxConcurrency,
-      cc.maxLifetime,
-      cc.properties))
+      cc.maxLifetime))
 
   implicit val connectionConfigShow: Show[ConnectionConfig] =
     Show show { cc =>
-      val props = cc.properties.toList.map { case (k, v) => s"$k=$v" }
-      s"ConnectionConfig(${cc.serverName}/${cc.databaseName}, ${cc.maxConcurrency}, ${cc.maxLifetime}, ${props.mkString(";")})"
+      s"ConnectionConfig(${cc.asJdbcUrl}, ${cc.maxConcurrency}, ${cc.maxLifetime})"
     }
 }

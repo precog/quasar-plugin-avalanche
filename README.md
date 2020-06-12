@@ -18,27 +18,22 @@ JSON configurating describing how to connect to an Avalanche cluster.
 
 ```
 {
-  "serverName": String,
-  "databaseName": String,
-  ["maxConcurrency": Number,]
-  ["maxLifetimeSecs": Number,]
-  ["properties": Object]
+  "jdbcUrl": String
+  [, "maxConcurrency": Number]
+  [, "maxLifetimeSecs": Number]
 }
 ```
 
-A detailed description of many of these options may be found in the [Actian documentation for JDBC DataSource properties](https://docs.actian.com/avalanche/index.html#page/Connectivity%2FData_Source_Properties.htm%23).
-
-* `serverName`: the server hostname (or network address) and port ("serverName" DataSource property)
-* `databaseName`: the name of the database to use ("databaseName" DataSource property)
+* `jdbcUrl`: an Avalanche [JDBC URL](https://docs.actian.com/avalanche/index.html#page/Connectivity%2FDriverManager.getConnection()_Method--Establish.htm%23), optionally including any of the following [driver properties](https://docs.actian.com/avalanche/index.html#page/Connectivity%2FJDBC_Driver_Properties.htm%23)
+  * `user`/`UID`
+  * `password`/`PWD`
+  * `role`/`ROLE`
+  * `group`/`GRP`
+  * `dbms_user`/`DBUSR`
+  * `dbms_password`/`DBPWD`
+  * `compression`/`COMPRESS`
+  * `vnode_usage`/`VNODE`
+  * `encryption`/`ENCRYPT`
+  * `char_encode`/`ENCODE`
 * `maxConcurrency` (optional): the maximum number of simultaneous connections to the database (default: 8)
 * `maxLifetimeSecs` (optional): the maximum lifetime, in seconds, of idle connections. If your database or infrastructure imposes any limit on idle connections, make sure to set this value to at most a few seconds less than the limit (default: 210 seconds)
-* `properties` (optional): any of the following DataSource properties
-  * `user`
-  * `password`
-  * `dbmsUser`
-  * `dbmsPassword`
-  * `groupName`
-  * `roleName`
-  * `vnodeUsage`
-  * `encryption`
-  * `compression`

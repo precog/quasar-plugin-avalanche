@@ -19,9 +19,10 @@ package quasar.plugin.avalanche.datasource
 import scala.{Int, Option, Some}
 import scala.collection.immutable.SortedSet
 import scala.concurrent.duration._
-import scala.util.{Either, Right}
+import scala.util.Either
 
 import java.lang.String
+import java.net.URI
 
 import argonaut._, Argonaut._
 
@@ -38,16 +39,12 @@ import quasar.api.datasource.DatasourceType
 import quasar.connector.{ByteStore, MonadResourceErr}
 import quasar.connector.datasource.LightweightDatasourceModule
 import quasar.plugin.jdbc.{JdbcDiscovery, TableType, TransactorConfig}
-import quasar.plugin.jdbc.JdbcDriverConfig.JdbcDataSourceConfig
+import quasar.plugin.jdbc.JdbcDriverConfig.JdbcDriverManagerConfig
 import quasar.plugin.jdbc.datasource.JdbcDatasourceModule
 
 import org.slf4s.Logger
 
 object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] {
-
-  // Setting this system property to "disabled" will disable property validation
-  // and allow any DataSource property to be configured.
-  val PropertyValidationProperty: String = "quasar.plugin.avalanche.datasource.property-validation"
 
   val DefaultConnectionMaxConcurrency: Int = 8
   // Avalanche cloud appears to terminate idle connections after 4 minutes
@@ -65,23 +62,23 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
       discoverable = NonEmptySet.fromSet(pruned) getOrElse default
     } yield discoverable.map(TableType(_)))
 
-  def transactorConfig(config: DatasourceConfig): Either[NonEmptyList[String], TransactorConfig] = {
-    val connectionConfig =
-      if (scala.sys.props.get(PropertyValidationProperty).exists(_ == "disabled"))
-        Right(config.connection)
-      else
-        config.connection.validated.toEither
+  def transactorConfig(config: DatasourceConfig): Either[NonEmptyList[String], TransactorConfig] =
+    for {
+      cc <- config.connection.validated.toEither
 
-    connectionConfig map { c =>
-      val driverCfg =
-        JdbcDataSourceConfig("com.ingres.jdbc.IngresDataSource", c.dataSourceProperites)
+      jdbcUrl <-
+        Either.catchNonFatal(new URI(cc.asJdbcUrl))
+          .leftMap(_ => NonEmptyList.one("JDBC URL is not a valid URI"))
 
-      val maxConcurrency =
-        c.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
+      driverCfg = JdbcDriverManagerConfig(jdbcUrl, Some("com.ingres.jdbc.IngresDriver"))
 
-      val maxLifetime =
-        c.maxLifetime getOrElse DefaultConnectionMaxLifetime
+      maxConcurrency =
+        cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
 
+      maxLifetime =
+        cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
+
+    } yield {
       TransactorConfig
         .withDefaultTimeouts(
           driverConfig = driverCfg,
@@ -89,7 +86,6 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
           connectionReadOnly = true)
         .copy(connectionMaxLifetime = maxLifetime)
     }
-  }
 
   def sanitizeConfig(config: Json): Json =
     config.as[DatasourceConfig].toOption

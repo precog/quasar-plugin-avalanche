@@ -16,7 +16,7 @@
 
 package quasar.plugin.avalanche
 
-import scala._, Predef._
+import scala._
 import scala.concurrent.duration._
 
 import argonaut._, Argonaut._
@@ -28,12 +28,18 @@ import org.specs2.mutable.Specification
 import quasar.plugin.jdbc.Redacted
 
 object ConnectionConfigSpec extends Specification {
+  val CC = ConnectionConfig.Optics
+  val DP = DriverProperty.Optics
 
   "JSON codec" >> {
     val fullConfig =
       ConnectionConfig(
-        "example.com:12354", "db", Some(4), Some(30.seconds),
-        Map("user" -> "alice", "password" -> "secret", "encryption" -> "off"))
+        "example.com:12354", "db",
+        List(
+          DriverProperty("UID", "alice"),
+          DriverProperty("PWD", "secret"),
+          DriverProperty("encryption", "off")),
+        Some(4), Some(30.seconds))
 
     def roundtrips(cc: ConnectionConfig) =
       cc.asJson.as[ConnectionConfig].toEither must beRight(cc)
@@ -43,66 +49,135 @@ object ConnectionConfigSpec extends Specification {
     }
 
     "roundtrips no properties" >> {
-      roundtrips(fullConfig.copy(properties = Map.empty))
+      roundtrips(CC.properties.set(Nil)(fullConfig))
     }
 
     "maxConcurrency is optional" >> {
-      roundtrips(fullConfig.copy(maxConcurrency = None))
+      roundtrips(CC.maxConcurrency.set(None)(fullConfig))
     }
 
     "maxLifetimeSecs is optional" >> {
-      roundtrips(fullConfig.copy(maxLifetime = None))
+      roundtrips(CC.maxLifetime.set(None)(fullConfig))
     }
 
-    "null property omitted" >> {
+    "malformed when no scheme" >> {
       val json = """
-        {
-          "serverName": "example.com:12354",
-          "databaseName": "db",
-          "maxConcurrency": 4,
-          "maxLifetimeSecs": 30,
-          "properties": {
-            "user": "bob",
-            "encryption": null,
-            "groupName": "managers"
-          }
-        }
+        { "jdbcUrl": "ingres://example.com/db1" }
+      """
+
+      json.decodeEither[ConnectionConfig] must beLeft(contain("JDBC URL"))
+    }
+
+    "malformed when no ingres scheme" >> {
+      val json = """
+        { "jdbcUrl": "jdbc:notingres://example.com/db1" }
+      """
+
+      json.decodeEither[ConnectionConfig] must beLeft(contain("JDBC URL"))
+    }
+
+    "malformed when no server" >> {
+      val json = """
+        { "jdbcUrl": "jdbc:ingres:///db1" }
+      """
+
+      json.decodeEither[ConnectionConfig] must beLeft(contain("JDBC URL"))
+    }
+
+    "malformed when no database" >> {
+      val json = """
+        { "jdbcUrl": "jdbc:ingres://server.example.com:1232" }
+      """
+
+      json.decodeEither[ConnectionConfig] must beLeft(contain("JDBC URL"))
+    }
+
+    "malformed when attr/value malformed" >> {
+      val json = """
+        { "jdbcUrl": "jdbc:ingres://server.example.com:1232/db1;foo" }
+      """
+
+      json.decodeEither[ConnectionConfig] must beLeft(contain("driver property"))
+    }
+
+    "property with no value is empty" >> {
+      val json = """
+        { "jdbcUrl": "jdbc:ingres://server.example.com:1232/db1;foo=" }
       """
 
       val expected =
-        fullConfig.copy(properties = Map("user" -> "bob", "groupName" -> "managers"))
+        ConnectionConfig("server.example.com:1232", "db1", List(DriverProperty("foo", "")), None, None)
 
-      json.decodeOption[ConnectionConfig] must beSome(expected)
+      json.decodeEither[ConnectionConfig] must beRight(expected)
+    }
+
+    "preserves property names and order" >> {
+      val json = """
+        { "jdbcUrl": "jdbc:ingres://server.example.com:1232/db1;UID=bob;password=guess;VNODE=connect" }
+      """
+
+      val expected =
+        ConnectionConfig(
+          "server.example.com:1232", "db1",
+          List(
+            DriverProperty("UID", "bob"),
+            DriverProperty("password", "guess"),
+            DriverProperty("VNODE", "connect")),
+          None, None)
+
+      json.decodeEither[ConnectionConfig] must beRight(expected)
+    }
+
+    "correctly handles '=' in property values" >> {
+      val json = """
+        { "jdbcUrl": "jdbc:ingres://server.example.com:1232/db1;PWD==oiur3==fkj;UID=alice" }
+      """
+
+      val expected =
+        ConnectionConfig(
+          "server.example.com:1232", "db1",
+          List(
+            DriverProperty("PWD", "=oiur3==fkj"),
+            DriverProperty("UID", "alice")),
+          None, None)
+
+      json.decodeEither[ConnectionConfig] must beRight(expected)
     }
   }
 
   "sanitization" >> {
     val config =
-      ConnectionConfig("example.com:12354", "db", Some(4), Some(30.seconds), Map.empty)
+      ConnectionConfig("example.com:12354", "db", Nil, Some(4), Some(30.seconds))
 
-    "redacts sensitive properties" >> {
-      val ps =
-        (ConnectionConfig.SensitiveProps - ConnectionConfig.RoleNameProp)
-          .map(_ -> "secret")
-          .toMap
+    val pvalues = CC.driverProperties.composeLens(DP.value)
+
+    "redacts password properties" >> {
+      val pwds = List("password", "PWD", "dbms_password", "DBPWD")
+      val props = pwds.map(DriverProperty(_, "secret"))
+
+      val actual =
+        CC.properties.set(props)(config)
 
       val expected =
-        config.copy(properties = ps.as(Redacted))
+        pvalues.set(Redacted)(actual)
 
-      config.copy(properties = ps).sanitized must_=== expected
+      actual.sanitized must_=== expected
     }
 
+    val roleProps =
+      ConnectionConfig.RoleProps.toList.map(DriverProperty(_, "someRole"))
+
     "does not redact role name without password" >> {
-      val withRole = config.copy(properties = Map(ConnectionConfig.RoleNameProp -> "arole"))
+      val withRole = CC.properties.set(roleProps)(config)
       withRole.sanitized must_=== withRole
     }
 
     "redacts role password, if present" >> {
       val withRolePw =
-        config.copy(properties = Map(ConnectionConfig.RoleNameProp -> "admins|s3kre7"))
+        CC.properties.set(roleProps.map(DP.value.set("admins|s3kre7")))(config)
 
       val expected =
-        config.copy(properties = Map(ConnectionConfig.RoleNameProp -> s"admins|$Redacted"))
+        pvalues.set(s"admins|$Redacted")(withRolePw)
 
       withRolePw.sanitized must_=== expected
     }
@@ -112,12 +187,13 @@ object ConnectionConfigSpec extends Specification {
     "rejects unsupported properties" >> {
       val c =
         ConnectionConfig(
-          "example.com:12354", "db", None, None,
-          Map(
-            "user" -> "alice",
-            "allowRootAccess" -> "true",
-            "encryption" -> "on",
-            "disableSecurity" -> "true"))
+          "example.com:12354", "db",
+          List(
+            DriverProperty("user", "alice"),
+            DriverProperty("allowRootAccess", "true"),
+            DriverProperty("encryption", "on"),
+            DriverProperty("disableSecurity", "true")),
+          None, None)
 
       c.validated.toEither.leftMap(_.toList) must beLeft(exactly(contain("allowRootAccess") and contain("disableSecurity")))
     }
