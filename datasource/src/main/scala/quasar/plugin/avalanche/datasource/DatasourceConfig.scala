@@ -18,9 +18,20 @@ package quasar.plugin.avalanche.datasource
 
 import quasar.plugin.avalanche.ConnectionConfig
 
+import scala.{Boolean, StringContext}
+
 import argonaut._, Argonaut._
 
+import cats.{Eq, Show}
+import cats.implicits._
+
 final case class DatasourceConfig(connection: ConnectionConfig) {
+  def isSensitive: Boolean =
+    this =!= sanitized
+
+  def mergeSensitive(other: DatasourceConfig): DatasourceConfig =
+    copy(connection = connection.mergeSensitive(other.connection))
+
   def sanitized: DatasourceConfig =
     copy(connection = connection.sanitized)
 }
@@ -28,4 +39,10 @@ final case class DatasourceConfig(connection: ConnectionConfig) {
 object DatasourceConfig {
   implicit val datasourceConfigCodecJson: CodecJson[DatasourceConfig] =
     casecodec1(DatasourceConfig.apply, DatasourceConfig.unapply)("connection")
+
+  implicit val datasourceConfigEq: Eq[DatasourceConfig] =
+    Eq.by(_.connection)
+
+  implicit val datasourceConfigShow: Show[DatasourceConfig] =
+    Show.show(c => s"DatasourceConfig(${c.connection.show})")
 }

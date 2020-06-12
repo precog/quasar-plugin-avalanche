@@ -165,7 +165,7 @@ object ConnectionConfigSpec extends Specification {
     }
 
     val roleProps =
-      ConnectionConfig.RoleProps.toList.map(DriverProperty(_, "someRole"))
+      List("role", "ROLE").map(DriverProperty(_, "someRole"))
 
     "does not redact role name without password" >> {
       val withRole = CC.properties.set(roleProps)(config)

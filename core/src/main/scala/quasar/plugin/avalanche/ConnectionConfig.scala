@@ -47,6 +47,26 @@ final case class ConnectionConfig(
 
   import ConnectionConfig._
 
+  /** Merges sensitive information from `other` that isn't defined here. */
+  def mergeSensitive(other: ConnectionConfig): ConnectionConfig = {
+    val toMerge =
+      // Include/exclude synonyms as a set
+      List(PasswordProps, DbmsPasswordProps, RoleProps)
+        .foldLeft(Set[String]()) { (s, ps) =>
+          if (Optics.propertyNames.exist(ps)(this))
+            s
+          else
+            s ++ ps
+        }
+
+    val sensitiveProps =
+      Optics.driverProperties
+        .getAll(other)
+        .filter(p => toMerge(p.name))
+
+    Optics.properties.modify(_ ::: sensitiveProps)(this)
+  }
+
   def sanitized: ConnectionConfig = {
     val sanitizedProps = properties map {
       case DriverProperty(name, value) if RoleProps(name) =>
@@ -84,12 +104,19 @@ final case class ConnectionConfig(
 object ConnectionConfig {
   private val Pattern: Regex = "jdbc:ingres://([^/]+)/([^;]+)(?:;(.*))?".r
 
+  /** Might be sensitive, requires special handling. */
   val RoleProps: Set[String] =
     Set("role", "ROLE")
 
+  val PasswordProps: Set[String] =
+    Set("password", "PWD")
+
+  val DbmsPasswordProps: Set[String] =
+    Set("dbms_password", "DBPWD")
+
   /** Properties having values that should never be displayed. */
   val SensitiveProps: Set[String] =
-    Set("dbms_password", "DBPWD", "password", "PWD") ++ RoleProps
+    PasswordProps ++ DbmsPasswordProps
 
   /** The configurable Avalanche driver properties. */
   val ConfigurableProps: Set[String] =
@@ -101,7 +128,7 @@ object ConnectionConfig {
       "vnode_usage", "VNODE",
       "encryption", "ENCRYPT",
       "char_encode", "ENCODE"
-    ) ++ SensitiveProps
+    ) ++ SensitiveProps ++ RoleProps
 
   object Optics {
     val serverName: Lens[ConnectionConfig, String] =
@@ -115,6 +142,9 @@ object ConnectionConfig {
 
     val driverProperties: Traversal[ConnectionConfig, DriverProperty] =
       properties.composeTraversal(Traversal.fromTraverse[List, DriverProperty])
+
+    val propertyNames: Traversal[ConnectionConfig, String] =
+      driverProperties.composeLens(DriverProperty.Optics.name)
 
     val maxConcurrency: Lens[ConnectionConfig, Option[Int]] =
       Lens[ConnectionConfig, Option[Int]](_.maxConcurrency)(n => _.copy(maxConcurrency = n))

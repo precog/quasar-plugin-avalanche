@@ -16,7 +16,7 @@
 
 package quasar.plugin.avalanche.datasource
 
-import scala.{Int, Option, Some}
+import scala._
 import scala.collection.immutable.SortedSet
 import scala.concurrent.duration._
 import scala.util.Either
@@ -24,7 +24,7 @@ import scala.util.Either
 import java.lang.String
 import java.net.URI
 
-import argonaut._, Argonaut._
+import argonaut._, Argonaut._, ArgonautCats._
 
 import cats.data.{NonEmptyList, NonEmptySet}
 import cats.effect._
@@ -35,14 +35,17 @@ import doobie._
 import eu.timepit.refined.auto._
 
 import quasar.RateLimiting
-import quasar.api.datasource.DatasourceType
+import quasar.api.datasource.{DatasourceType, DatasourceError}
+import quasar.api.datasource.DatasourceError.ConfigurationError
 import quasar.connector.{ByteStore, MonadResourceErr}
 import quasar.connector.datasource.LightweightDatasourceModule
-import quasar.plugin.jdbc.{JdbcDiscovery, TableType, TransactorConfig}
+import quasar.plugin.jdbc.{JdbcDiscovery, Redacted, TableType, TransactorConfig}
 import quasar.plugin.jdbc.JdbcDriverConfig.JdbcDriverManagerConfig
 import quasar.plugin.jdbc.datasource.JdbcDatasourceModule
 
 import org.slf4s.Logger
+
+import scalaz.{NonEmptyList => ZNel}
 
 object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] {
 
@@ -90,6 +93,31 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
   def sanitizeConfig(config: Json): Json =
     config.as[DatasourceConfig].toOption
       .fold(jEmptyObject)(_.sanitized.asJson)
+
+  def reconfigure(original: Json, patch: Json): Either[ConfigurationError[Json], Json] = {
+    def decodeCfg(js: Json, name: String): Either[ConfigurationError[Json], DatasourceConfig] =
+      js.as[DatasourceConfig].toEither.leftMap { case (m, c) =>
+        DatasourceError.MalformedConfiguration(
+          kind,
+          jString(Redacted),
+          s"Failed to decode $name config JSON at ${c.toList.map(_.show).mkString(", ")}")
+      }
+
+    for {
+      prev <- decodeCfg(original, "original")
+      next <- decodeCfg(patch, "new")
+
+      result <-
+        if (next.isSensitive)
+          Left(DatasourceError.InvalidConfiguration(
+            kind,
+            next.sanitized.asJson,
+            ZNel("New configuration contains sensitive information.")))
+        else
+          Right(next.mergeSensitive(prev))
+
+    } yield result.asJson
+  }
 
   def jdbcDatasource[F[_]: ConcurrentEffect: ContextShift: MonadResourceErr: Timer, A](
       config: DatasourceConfig,
