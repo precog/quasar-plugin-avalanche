@@ -84,6 +84,7 @@ object Types {
   /** Mapping between supported JDBC types and Quasar column type. */
   val JdbcColumnTypes: Map[JdbcType, ColumnType.Scalar] =
     Map(
+      BigInt -> ColumnType.Number,
       Boolean -> ColumnType.Boolean,
       Char -> ColumnType.String,
       Date -> ColumnType.LocalDate,
