@@ -38,7 +38,7 @@ import quasar.RateLimiting
 import quasar.api.datasource.{DatasourceType, DatasourceError}
 import quasar.api.datasource.DatasourceError.ConfigurationError
 import quasar.connector.{ByteStore, MonadResourceErr}
-import quasar.connector.datasource.LightweightDatasourceModule
+import quasar.connector.datasource.{LightweightDatasourceModule, Reconfiguration}
 import quasar.plugin.jdbc.{JdbcDiscovery, Redacted, TableType, TransactorConfig}
 import quasar.plugin.jdbc.JdbcDriverConfig.JdbcDriverManagerConfig
 import quasar.plugin.jdbc.datasource.JdbcDatasourceModule
@@ -94,7 +94,7 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
     config.as[DatasourceConfig].toOption
       .fold(jEmptyObject)(_.sanitized.asJson)
 
-  def reconfigure(original: Json, patch: Json): Either[ConfigurationError[Json], Json] = {
+  def reconfigure(original: Json, patch: Json): Either[ConfigurationError[Json], (Reconfiguration, Json)] = {
     def decodeCfg(js: Json, name: String): Either[ConfigurationError[Json], DatasourceConfig] =
       js.as[DatasourceConfig].toEither.leftMap { case (m, c) =>
         DatasourceError.MalformedConfiguration(
@@ -116,7 +116,7 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
         else
           Right(next.mergeSensitive(prev))
 
-    } yield result.asJson
+    } yield (Reconfiguration.Reset, result.asJson)
   }
 
   def jdbcDatasource[F[_]: ConcurrentEffect: ContextShift: MonadResourceErr: Timer, A](

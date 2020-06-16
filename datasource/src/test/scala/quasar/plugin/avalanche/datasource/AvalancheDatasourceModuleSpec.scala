@@ -28,6 +28,7 @@ import argonaut._, Argonaut._
 import org.specs2.mutable.Specification
 
 import quasar.api.datasource.DatasourceError
+import quasar.connector.datasource.Reconfiguration
 
 object AvalancheDatasourceModuleSpec extends Specification {
   "reconfigure" >> {
@@ -93,7 +94,7 @@ object AvalancheDatasourceModuleSpec extends Specification {
       val expected =
         unsafeJson("""{"connection": {"jdbcUrl": "jdbc:ingres://other.example.com:123/db;UID=alice;PWD=secret"}}""")
 
-      AvalancheDatasourceModule.reconfigure(orig, next) must beRight(expected)
+      AvalancheDatasourceModule.reconfigure(orig, next) must beRight((Reconfiguration.Reset, expected))
     }
 
     "new role without password is not replaced" >> {
@@ -103,7 +104,7 @@ object AvalancheDatasourceModuleSpec extends Specification {
       val expected =
         unsafeJson("""{"connection": {"jdbcUrl": "jdbc:ingres://other.example.com:123/db;UID=alice;role=user;PWD=secret"}}""")
 
-      AvalancheDatasourceModule.reconfigure(orig, next) must beRight(expected)
+      AvalancheDatasourceModule.reconfigure(orig, next) must beRight((Reconfiguration.Reset, expected))
     }
   }
 }
