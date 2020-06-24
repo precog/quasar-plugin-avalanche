@@ -32,8 +32,6 @@ import cats.implicits._
 
 import doobie._
 
-import eu.timepit.refined.auto._
-
 import quasar.RateLimiting
 import quasar.api.datasource.{DatasourceType, DatasourceError}
 import quasar.api.datasource.DatasourceError.ConfigurationError
