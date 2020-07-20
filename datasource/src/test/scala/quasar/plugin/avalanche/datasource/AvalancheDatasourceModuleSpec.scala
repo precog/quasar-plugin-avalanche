@@ -25,16 +25,38 @@ import java.text.ParseException
 
 import argonaut._, Argonaut._
 
+import cats.effect.IO
+
 import org.specs2.mutable.Specification
 
-import quasar.api.datasource.DatasourceError
+import quasar.api.datasource.{DatasourceError, DatasourceType}
 import quasar.connector.datasource.Reconfiguration
 
 object AvalancheDatasourceModuleSpec extends Specification {
-  "reconfigure" >> {
-    def unsafeJson(s: String): Json =
-      s.parse.fold(err => throw new ParseException(err, -1), js => js)
 
+  def unsafeJson(s: String): Json =
+    s.parse.fold(err => throw new ParseException(err, -1), js => js)
+
+  "migrate" >> {
+    "migrate config as itself" in {
+      val config = unsafeJson("""{"connection": {"jdbcUrl": "jdbc:ingres://example.com/db"}}""")
+
+      AvalancheDatasourceModule.migrateConfig[IO](config).unsafeRunSync() must beRight(config)
+    }
+
+    "fail to migrate malformed config" in {
+      val malformed = unsafeJson("""{"foobar": "baz"}""")
+
+      val error = DatasourceError.MalformedConfiguration(
+        DatasourceType("avalanche", 1L),
+        Json(),
+        "Configuration to migrate is malformed.")
+
+      AvalancheDatasourceModule.migrateConfig[IO](malformed).unsafeRunSync() must beLeft(error)
+    }
+  }
+
+  "reconfigure" >> {
     "fails if original malformed" >> {
       val orig = unsafeJson("""{"foobar": "baz"}""")
       val next = unsafeJson("""{"connection": {"jdbcUrl": "jdbc:ingres://example.com/db"}}""")

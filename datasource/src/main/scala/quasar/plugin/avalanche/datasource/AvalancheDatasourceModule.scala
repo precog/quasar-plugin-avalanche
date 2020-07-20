@@ -92,6 +92,18 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
     config.as[DatasourceConfig].toOption
       .fold(jEmptyObject)(_.sanitized.asJson)
 
+  def migrateConfig[F[_]: Sync](config: Json): F[Either[ConfigurationError[Json], Json]] =
+    Sync[F] delay {
+      config.as[DatasourceConfig].result match {
+        case Left(_) =>
+          Left(DatasourceError.MalformedConfiguration[Json](
+            kind,
+            sanitizeConfig(config),
+            "Configuration to migrate is malformed."))
+        case Right(cfg) => Right(cfg.asJson)
+      }
+    }
+
   def reconfigure(original: Json, patch: Json): Either[ConfigurationError[Json], (Reconfiguration, Json)] = {
     def decodeCfg(js: Json, name: String): Either[ConfigurationError[Json], DatasourceConfig] =
       js.as[DatasourceConfig].toEither.leftMap { case (m, c) =>
