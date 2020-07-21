@@ -92,6 +92,10 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
     config.as[DatasourceConfig].toOption
       .fold(jEmptyObject)(_.sanitized.asJson)
 
+
+   def migrateConfig[F[_]: Sync](config: Json): F[Either[ConfigurationError[Json], Json]] =
+     Sync[F].pure(Right(config))
+
   def reconfigure(original: Json, patch: Json): Either[ConfigurationError[Json], (Reconfiguration, Json)] = {
     def decodeCfg(js: Json, name: String): Either[ConfigurationError[Json], DatasourceConfig] =
       js.as[DatasourceConfig].toEither.leftMap { case (m, c) =>
