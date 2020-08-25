@@ -49,7 +49,7 @@ private[datasource] object MaskInterpreter {
       : ConnectionIO[Map[ColumnName, ColumnType.Scalar]] =
     discovery.tableColumns(table.asIdent, schema.map(_.asIdent))
       .map(m =>
-        Types.AvalancheColumnTypes.get(m.vendorType)
+        Types.AvalancheColumnTypes.get(m.vendorType.toLowerCase)
           .orElse(Types.JdbcColumnTypes.get(m.jdbcType))
           .tupleLeft(m.name))
       .unNone
