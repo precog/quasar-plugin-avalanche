@@ -52,7 +52,7 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
   // Avalanche cloud appears to terminate idle connections after 4 minutes
   val DefaultConnectionMaxLifetime: FiniteDuration = 3.minutes + 30.seconds
 
-  val kind = DatasourceType("avalanche", 1L)
+  val kind = DatasourceType("ctree", 1L)
 
   val DiscoverableTableTypes: Option[ConnectionIO[NonEmptySet[TableType]]] =
     Some(for {
