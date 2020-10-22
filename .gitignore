@@ -1,0 +1,14 @@
+target/
+
+# sbt-slamdata common resources
+/scripts/checkAndAutoMerge
+/scripts/commonSetup
+/scripts/discordTravisPost
+/scripts/isRevision
+/scripts/listLabels
+/scripts/closePR
+/scripts/publishAndTag
+/scripts/readVersion
+
+*.swo
+*.swp
