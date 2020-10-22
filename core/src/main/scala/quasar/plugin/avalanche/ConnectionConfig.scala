@@ -51,7 +51,7 @@ final case class ConnectionConfig(
   }
 
   def sanitized: ConnectionConfig = {
-    properties
+    this
   }
 
   def validated: ValidatedNel[String, ConnectionConfig] = {
