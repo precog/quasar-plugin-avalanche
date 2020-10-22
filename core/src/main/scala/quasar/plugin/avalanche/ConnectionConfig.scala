@@ -93,7 +93,6 @@ object ConnectionConfig {
         maxLifetimeSecs <- (cursor --\ "maxLifetimeSecs").as[Option[Int]]
         jdbcUrl <- (cursor --\ "jdbcUrl").as[String]
         maxLifetime = maxLifetimeSecs.map(_.seconds)
-
       } yield ConnectionConfig(jdbcUrl, maxConcurrency, maxLifetime))
 
   implicit val connectionConfigEq: Eq[ConnectionConfig] =

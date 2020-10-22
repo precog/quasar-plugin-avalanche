@@ -17,6 +17,7 @@
 package quasar.plugin.avalanche.datasource
 
 import scala._
+import scala.Predef.println
 import scala.collection.immutable.SortedSet
 import scala.concurrent.duration._
 import scala.util.Either
@@ -67,18 +68,18 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
   def transactorConfig(config: DatasourceConfig): Either[NonEmptyList[String], TransactorConfig] =
     for {
       cc <- config.connection.validated.toEither
+      debug1 = println("2")
 
-      jdbcUrl <-
-        Either.catchNonFatal(new URI(cc.asJdbcUrl))
-          .leftMap(_ => NonEmptyList.one("JDBC URL is not a valid URI"))
-
-      driverCfg = JdbcDriverManagerConfig(jdbcUrl, Some("ctree.jdbc.ctreeDriver"))
+      driverCfg = JdbcDriverManagerConfig(new URI(cc.jdbcUrl), Some("ctree.jdbc.ctreeDriver"))
+      debug2 = println("3")
 
       maxConcurrency =
         cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
+      debug3 = println("4")
 
       maxLifetime =
         cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
+      debug4 = println("5")
 
     } yield {
       TransactorConfig
