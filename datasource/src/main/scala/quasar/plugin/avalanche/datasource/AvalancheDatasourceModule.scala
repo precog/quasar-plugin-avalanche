@@ -67,7 +67,6 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
 
   def transactorConfig(config: DatasourceConfig): Either[NonEmptyList[String], TransactorConfig] =
     for {
-      debug1 = println("1")
       cc <- config.connection.validated.toEither
       debug1 = println("2")
 
