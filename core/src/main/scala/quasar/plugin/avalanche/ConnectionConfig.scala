@@ -30,7 +30,7 @@ import cats.implicits._
 
 import monocle.{Lens, Traversal}
 
-import quasar.plugin.jdbc.Redacted
+import quasar.lib.jdbc.Redacted
 
 import shims.traverseToScalaz
 

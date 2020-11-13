@@ -15,7 +15,7 @@ lazy val quasarVersion =
   Def.setting[String](managedVersions.value("precog-quasar"))
 
 lazy val quasarPluginJdbcVersion =
-  Def.setting[String](managedVersions.value("precog-quasar-plugin-jdbc"))
+  Def.setting[String](managedVersions.value("precog-quasar-lib-jdbc"))
 
 val Specs2Version = "4.9.4"
 
@@ -34,7 +34,7 @@ lazy val core = project
     name := "quasar-plugin-avalanche",
 
     libraryDependencies ++= Seq(
-      "com.precog" %% "quasar-plugin-jdbc" % quasarPluginJdbcVersion.value,
+      "com.precog" %% "quasar-lib-jdbc" % quasarPluginJdbcVersion.value,
       "org.specs2" %% "specs2-core" % Specs2Version % Test
     ),
 
@@ -74,7 +74,7 @@ lazy val datasource = project
     quasarPluginDatasourceFqcn := Some("quasar.plugin.avalanche.datasource.AvalancheDatasourceModule$"),
 
     quasarPluginDependencies ++= Seq(
-      "com.precog" %% "quasar-plugin-jdbc" % quasarPluginJdbcVersion.value
+      "com.precog" %% "quasar-lib-jdbc" % quasarPluginJdbcVersion.value
     ),
 
     libraryDependencies ++= Seq(

@@ -40,8 +40,8 @@ import quasar.ScalarStages
 import quasar.common.data.{QDataRValue, RValue}
 import quasar.connector.QueryResult
 import quasar.connector.datasource.BatchLoader
-import quasar.plugin.jdbc._
-import quasar.plugin.jdbc.datasource._
+import quasar.lib.jdbc._
+import quasar.lib.jdbc.datasource._
 
 private[datasource] object AvalancheLoader {
   type I = AvalancheHygiene.HygienicIdent

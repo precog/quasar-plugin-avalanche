@@ -18,8 +18,8 @@ package quasar.plugin.avalanche.datasource
 
 import quasar.plugin.avalanche.AvalancheHygiene
 
-import quasar.plugin.jdbc._
-import quasar.plugin.jdbc.datasource._
+import quasar.lib.jdbc._
+import quasar.lib.jdbc.datasource._
 
 import scala.Int
 import java.lang.Throwable

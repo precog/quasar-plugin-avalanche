@@ -20,7 +20,7 @@ import scala.StringContext
 
 import java.lang.String
 
-import quasar.plugin.jdbc._
+import quasar.lib.jdbc._
 
 object AvalancheHygiene extends Hygiene {
   final case class HygienicIdent(asIdent: Ident) extends Hygienic {
