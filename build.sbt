@@ -81,3 +81,4 @@ lazy val datasource = project
       "org.specs2" %% "specs2-core" % Specs2Version % Test
     ))
   .enablePlugins(QuasarPlugin)
+  .evictToLocal("QUASAR_PATH", "connector", true)
