@@ -25,7 +25,7 @@ import cats.implicits._
 
 import org.specs2.mutable.Specification
 
-import quasar.plugin.jdbc.Redacted
+import quasar.lib.jdbc.Redacted
 
 object ConnectionConfigSpec extends Specification {
   val CC = ConnectionConfig.Optics
