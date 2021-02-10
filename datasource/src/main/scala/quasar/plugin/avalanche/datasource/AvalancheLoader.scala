@@ -38,7 +38,7 @@ import fs2.Stream
 
 import quasar.ScalarStages
 import quasar.common.data.{QDataRValue, RValue}
-import quasar.connector.QueryResult
+import quasar.connector.{QueryResult, ResultData}
 import quasar.connector.datasource.BatchLoader
 import quasar.lib.jdbc._
 import quasar.lib.jdbc.datasource._
@@ -78,7 +78,7 @@ private[datasource] object AvalancheLoader {
             (Stream.empty: Stream[ConnectionIO, RValue]).pure[Resource[ConnectionIO, ?]]
         }
 
-        rvalues.map(QueryResult.parsed(QDataRValue, _, stages))
+        rvalues.map(rs => QueryResult.parsed(QDataRValue, ResultData.Continuous(rs), stages))
     }
 
   def isSupported(sqlType: SqlType, avalancheType: VendorType): Boolean =
