@@ -81,7 +81,7 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
         cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
 
     } yield {
-      val tc = TransactorConfig(driverConfig, None)
+      TransactorConfig(driverConfig, None)
     }
 
   def sanitizeConfig(config: Json): Json =
