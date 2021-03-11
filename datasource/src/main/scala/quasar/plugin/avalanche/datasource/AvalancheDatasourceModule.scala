@@ -74,12 +74,6 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
 
       driverCfg = JdbcDriverManagerConfig(jdbcUrl, Some("com.ingres.jdbc.IngresDriver"))
 
-      maxConcurrency =
-        cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
-
-      maxLifetime =
-        cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
-
     } yield {
       TransactorConfig(driverCfg, None)
     }
