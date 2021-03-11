@@ -74,19 +74,8 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
 
       driverCfg = JdbcDriverManagerConfig(jdbcUrl, Some("com.ingres.jdbc.IngresDriver"))
 
-      maxConcurrency =
-        cc.maxConcurrency getOrElse DefaultConnectionMaxConcurrency
-
-      maxLifetime =
-        cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
-
     } yield {
-      val tc = TransactorConfig
-        .withDefaultTimeouts(
-          driverConfig = driverCfg,
-          connectionMaxConcurrency = maxConcurrency,
-          connectionReadOnly = true)
-      tc.copy(poolConfig = tc.poolConfig.map(_.copy(connectionMaxLifetime = maxLifetime)))
+      TransactorConfig(driverCfg, None)
     }
 
   def sanitizeConfig(config: Json): Json =
