@@ -81,12 +81,12 @@ object AvalancheDatasourceModule extends JdbcDatasourceModule[DatasourceConfig] 
         cc.maxLifetime getOrElse DefaultConnectionMaxLifetime
 
     } yield {
-      TransactorConfig
+      val tc = TransactorConfig
         .withDefaultTimeouts(
           driverConfig = driverCfg,
           connectionMaxConcurrency = maxConcurrency,
           connectionReadOnly = true)
-        .copy(connectionMaxLifetime = maxLifetime)
+      tc.copy(poolConfig = tc.poolConfig.map(_.copy(connectionMaxLifetime = maxLifetime)))
     }
 
   def sanitizeConfig(config: Json): Json =
