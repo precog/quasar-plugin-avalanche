@@ -21,6 +21,7 @@ import quasar.plugin.avalanche._
 import scala.{Stream => _, _}, Predef.classOf
 import scala.annotation.switch
 
+import java.lang.String
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.sql.ResultSet
@@ -48,8 +49,8 @@ private[datasource] object AvalancheLoader {
   type Args = (I, Option[I], ColumnSelection[I], ScalarStages)
 
   def apply(logHandler: LogHandler, resultChunkSize: Int)
-      : BatchLoader[Resource[ConnectionIO, ?], Args, QueryResult[ConnectionIO]] =
-    BatchLoader.Full[Resource[ConnectionIO, ?], Args, QueryResult[ConnectionIO]] {
+      : BatchLoader[Resource[ConnectionIO, ?], Args, Either[String, QueryResult[ConnectionIO]]] =
+    BatchLoader.Full[Resource[ConnectionIO, ?], Args, Either[String, QueryResult[ConnectionIO]]] {
       case (table, schema, columns, stages) =>
         val dbObject0 =
           schema.fold(table.fr0)(_.fr0 ++ Fragment.const0(".") ++ table.fr0)
@@ -78,7 +79,7 @@ private[datasource] object AvalancheLoader {
             (Stream.empty: Stream[ConnectionIO, RValue]).pure[Resource[ConnectionIO, ?]]
         }
 
-        rvalues.map(rs => QueryResult.parsed(QDataRValue, ResultData.Continuous(rs), stages))
+        rvalues.map(rs => QueryResult.parsed(QDataRValue, ResultData.Continuous(rs), stages).asRight)
     }
 
   def isSupported(sqlType: SqlType, avalancheType: VendorType): Boolean =
