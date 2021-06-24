@@ -48,7 +48,7 @@ private[datasource] object AvalancheDatasource {
     val loader =
       JdbcLoader(xa, discovery, AvalancheHygiene) {
         AvalancheLoader(Slf4sLogHandler(log), DefaultResultChunkSize)
-          .compose(MaskInterpreter(discovery).andThen(Resource.liftF(_)))
+          .compose(MaskInterpreter(discovery).andThen(Resource.eval(_)))
       }
 
     JdbcDatasource(
