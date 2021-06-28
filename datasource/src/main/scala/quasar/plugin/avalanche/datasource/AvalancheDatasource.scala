@@ -32,7 +32,7 @@ import doobie._
 import doobie.implicits._
 
 import quasar.connector.MonadResourceErr
-import quasar.connector.datasource.{LightweightDatasourceModule, Loader}
+import quasar.connector.datasource.{DatasourceModule, Loader}
 
 import org.slf4s.Logger
 
@@ -43,7 +43,7 @@ private[datasource] object AvalancheDatasource {
       xa: Transactor[F],
       discovery: JdbcDiscovery,
       log: Logger)
-      : LightweightDatasourceModule.DS[F] = {
+      : DatasourceModule.DS[F] = {
 
     val loader =
       JdbcLoader(xa, discovery, AvalancheHygiene) {
