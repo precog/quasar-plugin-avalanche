@@ -171,7 +171,7 @@ object ConnectionConfig {
         jdbcUrl <- urlCursor.as[String]
 
         (server, db, propStr) <- jdbcUrl match {
-          case Pattern(srv, db, ps) => DecodeResult.ok((srv, db, ps))
+          case Pattern(_, srv, db, ps) => DecodeResult.ok((srv, db, ps))
           case _ => DecodeResult.fail("Malformed JDBC URL", urlCursor.history)
         }
 
