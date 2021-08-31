@@ -102,7 +102,7 @@ final case class ConnectionConfig(
 }
 
 object ConnectionConfig {
-  private val Pattern: Regex = "jdbc:ingres://([^/]+)/([^;]+)(?:;(.*))?".r
+  private val Pattern: Regex = "jdbc:(ingres|actian)://([^/]+)/([^;]+)(?:;(.*))?".r
 
   /** Might be sensitive, requires special handling. */
   val RoleProps: Set[String] =
